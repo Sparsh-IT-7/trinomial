@@ -1,245 +1,236 @@
 import React, { useState } from 'react';
-import { X, MapPin, Camera, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import { CivicIssue } from '../../data/civicData';
+import { X, MapPin, AlertTriangle, CheckCircle2, Send, PlusCircle } from 'lucide-react';
+import { api } from '../../services/api';
+import { IssueCategory } from '../../types/civic';
 
 interface ReportIssueModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (newIssue: Partial<CivicIssue>) => void;
+  onReportCreated?: () => void;
 }
+
+const CATEGORIES: IssueCategory[] = [
+  'Water Supply',
+  'Sewerage & Drainage',
+  'Solid Waste Management',
+  'Public Sanitation & Toilets',
+  'Air Quality & Pollution',
+  'Roads & Infrastructure',
+  'Traffic & Public Safety',
+];
 
 export const ReportIssueModal: React.FC<ReportIssueModalProps> = ({
   isOpen,
   onClose,
-  onSubmit,
+  onReportCreated,
 }) => {
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState<CivicIssue['category']>('Environmental Concerns');
-  const [severity, setSeverity] = useState<CivicIssue['severity']>('High Priority');
-  const [location, setLocation] = useState('Ward 150 (Bellandur)');
-  const [city, setCity] = useState('Bengaluru');
+  const [category, setCategory] = useState<IssueCategory>('Water Supply');
+  const [locationText, setLocationText] = useState('Dadar West, Ward G-North');
+  const [ward, setWard] = useState('Ward G-North');
+  const [city, setCity] = useState('Mumbai');
   const [description, setDescription] = useState('');
-  const [isGeolocating, setIsGeolocating] = useState(false);
-  const [geoCoords, setGeoCoords] = useState('12.9372, 77.6823');
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  const [generatedDocket, setGeneratedDocket] = useState('');
+  const [latitude, setLatitude] = useState('19.0178');
+  const [longitude, setLongitude] = useState('72.8478');
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
   const handleSimulateGPS = () => {
-    setIsGeolocating(true);
-    setTimeout(() => {
-      const lat = (12.937 + Math.random() * 0.01).toFixed(4);
-      const lng = (77.682 + Math.random() * 0.01).toFixed(4);
-      setGeoCoords(`${lat}, ${lng}`);
-      setIsGeolocating(false);
-    }, 600);
+    // Generate slight random jitter around Mumbai
+    const lat = (19.01 + Math.random() * 0.08).toFixed(4);
+    const lng = (72.84 + Math.random() * 0.06).toFixed(4);
+    setLatitude(lat);
+    setLongitude(lng);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !description.trim()) return;
+    if (!title.trim() || !description.trim() || !locationText.trim()) {
+      setError('Please provide title, location, and description.');
+      return;
+    }
 
-    const docketId = `KTV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
-    setGeneratedDocket(docketId);
+    setSubmitting(true);
+    setError(null);
 
-    const newIssue: Partial<CivicIssue> = {
-      id: docketId,
-      title,
-      category,
-      severity,
-      location,
-      city,
-      ward: 'Ward 150',
-      description,
-      geoCoordinates: geoCoords,
-      verifiedSource: 'Citizen Geo-Tag & Verified Contributor',
-      assignedAuthority: 'BBMP & State Pollution Control Board',
-      citizensMobilized: 1,
-      status: 'Open Issues',
-      updatedAt: 'Just now',
-      firstRecorded: 'Today',
-      escalationLevel: 1,
-      isWatchlisted: true,
-    };
+    try {
+      await api.submitCitizenReport({
+        title: title.trim(),
+        description: description.trim(),
+        category,
+        location_text: locationText.trim(),
+        ward: ward.trim() || undefined,
+        city: city.trim() || 'Mumbai',
+        latitude: parseFloat(latitude) || undefined,
+        longitude: parseFloat(longitude) || undefined,
+      });
 
-    onSubmit(newIssue);
-    setIsSubmitted(true);
+      setSuccess(true);
+      if (onReportCreated) onReportCreated();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to submit citizen report.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleClose = () => {
+    setSuccess(false);
+    setError(null);
+    setTitle('');
+    setDescription('');
+    onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-      <div className="w-full max-w-2xl bg-white border-2 border-[#047857] rounded-sm p-6 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between pb-4 border-b border-[#047857]/20">
-          <div>
-            <span className="text-[10px] font-bold tracking-widest text-[#F97316] uppercase">
-              CITIZEN SUBMISSION PROTOCOL
-            </span>
-            <h2 className="text-xl font-bold text-[#047857]">Report Civic & Environmental Issue</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+      <div className="bg-white border border-[#047857]/20 rounded-xs w-full max-w-lg shadow-xl overflow-hidden p-6 space-y-4">
+        {/* Header */}
+        <div className="flex items-center justify-between pb-3 border-b border-[#047857]/15">
+          <div className="flex items-center gap-2">
+            <PlusCircle className="w-5 h-5 text-[#F97316]" />
+            <div>
+              <h3 className="text-sm font-bold text-[#047857] uppercase tracking-wider">
+                Submit Citizen Civic Report
+              </h3>
+              <span className="text-[10px] text-[#047857]/60 block">
+                Secondary feature • Labelled as Pending Verification
+              </span>
+            </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1 text-[#047857] hover:text-[#065F46] rounded transition-colors"
-          >
+          <button onClick={handleClose} className="text-[#047857]/60 hover:text-[#047857] cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {isSubmitted ? (
-          <div className="py-8 text-center space-y-4">
-            <div className="w-14 h-14 bg-emerald-50 text-[#047857] border border-[#047857] rounded-full flex items-center justify-center mx-auto">
-              <CheckCircle2 className="w-8 h-8" />
-            </div>
-            <h3 className="text-xl font-bold text-[#047857]">Grievance Registered & Geotagged</h3>
-            <p className="text-sm text-[#047857]/80 max-w-md mx-auto">
-              Docket ID <span className="font-mono font-bold text-[#047857]">{generatedDocket}</span> has been created with cryptographic timestamp and queued for municipal cross-referencing.
+        {success ? (
+          <div className="py-6 text-center space-y-3 text-xs">
+            <CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto" />
+            <h4 className="text-base font-bold text-[#047857]">Citizen Report Recorded</h4>
+            <p className="text-[#047857]/80 max-w-sm mx-auto">
+              Your submission has been saved to the database. It will appear on the feed clearly labelled as{' '}
+              <strong>Citizen Report (Pending Verification)</strong> to preserve provenance distinction.
             </p>
-            <div className="p-3 bg-emerald-50/50 border border-[#047857]/20 rounded text-xs text-[#047857] text-left max-w-md mx-auto space-y-1">
-              <div className="flex justify-between">
-                <span className="font-semibold">Routing Jurisdiction:</span>
-                <span>BBMP Ward 150 & KSPCB Mahadevapura</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="font-semibold">Statutory SLA:</span>
-                <span>72 Hours (Citizen Charter Sec 4)</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="font-semibold">Telemetry Sensor Node:</span>
-                <span>Coordinates {geoCoords}</span>
-              </div>
-            </div>
             <button
-              onClick={() => {
-                setIsSubmitted(false);
-                onClose();
-              }}
-              className="mt-4 px-6 py-2 bg-[#F97316] hover:bg-[#EA580C] text-white text-sm font-semibold rounded"
+              onClick={handleClose}
+              className="px-5 py-2 bg-[#047857] hover:bg-[#035f44] text-white font-bold rounded-xs cursor-pointer shadow-2xs"
             >
-              Done & Return to Explorer
+              Done
             </button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="mt-5 space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-[#047857] uppercase tracking-wider mb-1">
-                Issue Title *
-              </label>
+          <form onSubmit={handleSubmit} className="space-y-3 text-xs">
+            {error && (
+              <div className="p-2.5 bg-red-50 border border-red-200 text-red-800 rounded-xs">
+                {error}
+              </div>
+            )}
+
+            <div className="space-y-1">
+              <label className="font-semibold text-[#047857]">Issue Title *</label>
               <input
                 type="text"
                 required
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g., Toxic Effluent Leakage into Stormwater Drain near Junction"
-                className="w-full px-3 py-2 text-sm border border-[#047857]/30 rounded text-[#047857] focus:border-[#F97316] focus:outline-hidden"
+                placeholder="e.g. Major water distribution pipe rupture leaking on SV Road"
+                className="w-full px-3 py-1.5 bg-[#fbfbfb] border border-[#047857]/20 rounded-xs focus:outline-hidden focus:border-[#047857]"
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-[#047857] uppercase tracking-wider mb-1">
-                  Category
-                </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="font-semibold text-[#047857]">Category *</label>
                 <select
                   value={category}
-                  onChange={(e) => setCategory(e.target.value as any)}
-                  className="w-full px-3 py-2 text-sm border border-[#047857]/30 rounded text-[#047857] bg-white focus:border-[#F97316] focus:outline-hidden"
+                  onChange={(e) => setCategory(e.target.value as IssueCategory)}
+                  className="w-full px-3 py-1.5 bg-[#fbfbfb] border border-[#047857]/20 rounded-xs focus:outline-hidden focus:border-[#047857]"
                 >
-                  <option value="Environmental Concerns">Environmental Concerns</option>
-                  <option value="Waste Management">Waste Management</option>
-                  <option value="Roads & Infrastructure">Roads & Infrastructure</option>
-                  <option value="Water Supply">Water Supply</option>
-                  <option value="Public Safety">Public Safety</option>
+                  {CATEGORIES.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
                 </select>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-[#047857] uppercase tracking-wider mb-1">
-                  Severity Level
-                </label>
-                <select
-                  value={severity}
-                  onChange={(e) => setSeverity(e.target.value as any)}
-                  className="w-full px-3 py-2 text-sm border border-[#047857]/30 rounded text-[#047857] bg-white focus:border-[#F97316] focus:outline-hidden"
-                >
-                  <option value="Critical">Critical (Immediate Public Hazard)</option>
-                  <option value="High Priority">High Priority</option>
-                  <option value="Moderate">Moderate</option>
-                  <option value="Under Review">Under Review</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-[#047857] uppercase tracking-wider mb-1">
-                  Location / Landmark
-                </label>
+              <div className="space-y-1">
+                <label className="font-semibold text-[#047857]">Ward / Zone</label>
                 <input
                   type="text"
-                  required
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  placeholder="e.g., Yamalur Lake Culvert #7"
-                  className="w-full px-3 py-2 text-sm border border-[#047857]/30 rounded text-[#047857] focus:border-[#F97316] focus:outline-hidden"
+                  value={ward}
+                  onChange={(e) => setWard(e.target.value)}
+                  placeholder="e.g. Ward G-North or Ward L"
+                  className="w-full px-3 py-1.5 bg-[#fbfbfb] border border-[#047857]/20 rounded-xs focus:outline-hidden focus:border-[#047857]"
                 />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-[#047857] uppercase tracking-wider mb-1">
-                  Geo-Coordinates
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={geoCoords}
-                    onChange={(e) => setGeoCoords(e.target.value)}
-                    className="w-full px-3 py-2 text-xs font-mono border border-[#047857]/30 rounded text-[#047857]"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleSimulateGPS}
-                    className="px-3 py-2 text-xs border border-[#047857] text-[#047857] hover:bg-[#047857]/5 rounded flex items-center gap-1 shrink-0"
-                  >
-                    <MapPin className="w-3.5 h-3.5" />
-                    {isGeolocating ? 'Locating...' : 'GPS'}
-                  </button>
-                </div>
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-[#047857] uppercase tracking-wider mb-1">
-                Detailed Incident Description *
-              </label>
-              <textarea
+            <div className="space-y-1">
+              <label className="font-semibold text-[#047857]">Location Description *</label>
+              <input
+                type="text"
                 required
-                rows={4}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Describe observations, time of occurrence, smells, affected public, water discoloration, or visible discharge points..."
-                className="w-full px-3 py-2 text-sm border border-[#047857]/30 rounded text-[#047857] focus:border-[#F97316] focus:outline-hidden"
+                value={locationText}
+                onChange={(e) => setLocationText(e.target.value)}
+                placeholder="e.g. Near Dadar Kabutarkhana & Railway Station"
+                className="w-full px-3 py-1.5 bg-[#fbfbfb] border border-[#047857]/20 rounded-xs focus:outline-hidden focus:border-[#047857]"
               />
             </div>
 
-            <div className="p-3 border border-dashed border-[#047857]/30 rounded bg-[#f9f9f9] text-center">
-              <Camera className="w-6 h-6 mx-auto text-[#047857]/60 mb-1" />
-              <p className="text-xs text-[#047857] font-medium">Attach Geotagged Photographic Proof</p>
-              <p className="text-[11px] text-[#047857]/60">JPEG/PNG metadata will be cryptographically hashed to prevent duplicate spoofing</p>
+            <div className="p-3 bg-[#fcfdfc] border border-[#047857]/15 rounded-xs space-y-2">
+              <div className="flex items-center justify-between text-[11px] font-semibold text-[#047857]">
+                <span className="flex items-center gap-1">
+                  <MapPin className="w-3.5 h-3.5 text-[#F97316]" />
+                  <span>Geo-Coordinates (Simulated / GPS)</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={handleSimulateGPS}
+                  className="text-[10px] text-[#047857] hover:underline font-bold cursor-pointer"
+                >
+                  Acquire GPS Pin
+                </button>
+              </div>
+              <div className="text-[11px] font-mono text-[#047857]/70">
+                {latitude}, {longitude} (Mumbai)
+              </div>
             </div>
 
-            <div className="pt-3 border-t border-[#047857]/20 flex justify-end gap-3">
+            <div className="space-y-1">
+              <label className="font-semibold text-[#047857]">Detailed Incident Description *</label>
+              <textarea
+                rows={3}
+                required
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Describe visible impact, hazard level, and observed timeline..."
+                className="w-full px-3 py-1.5 bg-[#fbfbfb] border border-[#047857]/20 rounded-xs focus:outline-hidden focus:border-[#047857]"
+              />
+            </div>
+
+            <div className="p-2.5 bg-amber-50 text-amber-800 border border-amber-200 rounded-xs text-[10px] leading-relaxed">
+              <strong>Notice:</strong> Citizen submissions are recorded separately from the OpenCity historical audit records and remain tagged as pending ground verification.
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-[#047857]/15">
               <button
                 type="button"
-                onClick={onClose}
-                className="px-4 py-2 border border-[#047857] text-[#047857] text-xs font-semibold rounded hover:bg-[#047857]/5"
+                onClick={handleClose}
+                className="px-4 py-2 border border-[#047857]/20 text-[#047857] font-semibold rounded-xs hover:bg-[#047857]/5 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 bg-[#F97316] hover:bg-[#EA580C] text-white text-xs font-semibold rounded shadow-xs"
+                disabled={submitting}
+                className="px-5 py-2 bg-[#F97316] hover:bg-[#EA580C] disabled:opacity-50 text-white font-bold rounded-xs transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
               >
-                Submit & Escalate to Ward Docket
+                <Send className="w-3.5 h-3.5" />
+                <span>{submitting ? 'Submitting...' : 'Record Citizen Issue'}</span>
               </button>
             </div>
           </form>
@@ -248,4 +239,5 @@ export const ReportIssueModal: React.FC<ReportIssueModalProps> = ({
     </div>
   );
 };
+
 export default ReportIssueModal;

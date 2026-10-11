@@ -37,34 +37,50 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
             <ul className="space-y-2 text-xs text-[#047857]/80">
               <li>
                 <button
-                  onClick={() => onNavigate('explore')}
+                  onClick={() => onNavigate('feed')}
                   className="hover:text-[#047857] hover:underline cursor-pointer"
                 >
-                  Explore Issues
+                  Civic Discovery Feed
                 </button>
               </li>
               <li>
                 <button
-                  onClick={() => onNavigate('volunteer')}
+                  onClick={() => onNavigate('events')}
                   className="hover:text-[#047857] hover:underline cursor-pointer"
                 >
-                  Volunteer Opportunities
+                  Civic Action Events & Volunteering
                 </button>
               </li>
               <li>
                 <button
-                  onClick={() => onNavigate('organizations')}
+                  onClick={() => onNavigate('rag')}
                   className="hover:text-[#047857] hover:underline cursor-pointer"
                 >
-                  Civic Organizations
+                  RAG Evidence Q&A
                 </button>
               </li>
               <li>
                 <button
-                  onClick={() => onNavigate('insights')}
+                  onClick={() => onNavigate('ingestion')}
                   className="hover:text-[#047857] hover:underline cursor-pointer"
                 >
-                  AI Insights & Metrics
+                  OpenCity Scraper Pipeline
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => onNavigate('collabs')}
+                  className="hover:text-[#047857] hover:underline cursor-pointer"
+                >
+                  Community Action & Collabs
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => onNavigate('stakeholders')}
+                  className="hover:text-[#047857] hover:underline cursor-pointer"
+                >
+                  Stakeholder Directory
                 </button>
               </li>
             </ul>

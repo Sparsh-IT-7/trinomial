@@ -1,77 +1,110 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React, { useState, useEffect } from 'react';
 import Header, { ActiveTab } from './components/Header';
 import Footer from './components/Footer';
-import HomeView from './views/HomeView';
+import DiscoveryFeedView from './views/DiscoveryFeedView';
 import IssueDetailView from './views/IssueDetailView';
+import RagExplorerView from './views/RagExplorerView';
+import IngestionAdminView from './views/IngestionAdminView';
+import StakeholdersView from './views/StakeholdersView';
+import CollaborationView from './views/CollaborationView';
+import DashboardMetricsView from './views/DashboardMetricsView';
 import VolunteerView from './views/VolunteerView';
-import DashboardView from './views/DashboardView';
-import AIInsightsView from './views/AIInsightsView';
-import OrganizationsView from './views/OrganizationsView';
-import LoginView from './views/LoginView';
+import EventDetailView from './views/EventDetailView';
 
 import ReportIssueModal from './components/modals/ReportIssueModal';
-import SignPetitionModal from './components/modals/SignPetitionModal';
-import VolunteerRegisterModal from './components/modals/VolunteerRegisterModal';
-import WardAlertsModal from './components/modals/WardAlertsModal';
-import FileGrievanceModal from './components/modals/FileGrievanceModal';
-import FactsheetModal from './components/modals/FactsheetModal';
+import CollaborationModal from './components/modals/CollaborationModal';
+import CreateEventModal from './components/modals/CreateEventModal';
 
-import {
-  INITIAL_ISSUES,
-  INITIAL_VOLUNTEER_DRIVES,
-  CivicIssue,
-  VolunteeringDrive,
-} from './data/civicData';
+import { CivicIssue, Stakeholder, CivicEvent, EventRecommendation } from './types/civic';
+import { api } from './services/api';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('home');
-  const [issues, setIssues] = useState<CivicIssue[]>(INITIAL_ISSUES);
-  const [volunteerDrives, setVolunteerDrives] =
-    useState<VolunteeringDrive[]>(INITIAL_VOLUNTEER_DRIVES);
-  const [selectedIssueId, setSelectedIssueId] = useState<string>('KTV-2024-8841');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('feed');
+  const [issues, setIssues] = useState<CivicIssue[]>([]);
+  const [loadingIssues, setLoadingIssues] = useState(true);
+  const [selectedIssueId, setSelectedIssueId] = useState<string>('KTV-MUM-2025-WTR-01');
+  const [scrapingInProgress, setScrapingInProgress] = useState(false);
 
-  // Authenticated user state
-  const [currentUser, setCurrentUser] = useState<{
-    name: string;
-    email: string;
-    ledgerId: string;
-  } | null>(() => {
-    return {
-      name: 'Priya Sharma',
-      email: 'atharvghosh7@gmail.com',
-      ledgerId: '#BLR-W150-8492',
-    };
-  });
-
-  const handleLoginSuccess = (user: { name: string; email: string; ledgerId: string }) => {
-    setCurrentUser(user);
-    setActiveTab('dashboard');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleLogout = () => {
-    setCurrentUser(null);
-    setActiveTab('login');
-  };
+  // Event & Volunteer state
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [isCreateEventModalOpen, setIsCreateEventModalOpen] = useState(false);
+  const [eventPrefilledIssue, setEventPrefilledIssue] = useState<CivicIssue | null>(null);
+  const [eventPrefilledRecommendation, setEventPrefilledRecommendation] =
+    useState<EventRecommendation | null>(null);
 
   // Modal visibility states
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
-  const [isSignPetitionModalOpen, setIsSignPetitionModalOpen] = useState(false);
-  const [isVolunteerModalOpen, setIsVolunteerModalOpen] = useState(false);
-  const [isWardAlertsModalOpen, setIsWardAlertsModalOpen] = useState(false);
-  const [isFileGrievanceModalOpen, setIsFileGrievanceModalOpen] = useState(false);
-  const [isFactsheetModalOpen, setIsFactsheetModalOpen] = useState(false);
-  const [selectedDriveForModal, setSelectedDriveForModal] =
-    useState<VolunteeringDrive | null>(null);
+  const [isCollabModalOpen, setIsCollabModalOpen] = useState(false);
+  const [issueForCollab, setIssueForCollab] = useState<CivicIssue | null>(null);
+  const [stakeholderForCollab, setStakeholderForCollab] = useState<Stakeholder | null>(null);
 
-  // Scroll to top on navigation
+  const fetchIssues = async () => {
+    try {
+      const data = await api.getIssues();
+      setIssues(data.issues);
+      if (data.issues.length > 0 && !selectedIssueId) {
+        setSelectedIssueId(data.issues[0].id);
+      }
+    } catch (e) {
+      console.error('Failed to load issues:', e);
+    } finally {
+      setLoadingIssues(false);
+    }
+  };
+
+  // URL Hash & Query routing check (Supports deep-linking to shareable event URLs)
+  const parseUrlRoute = () => {
+    if (typeof window === 'undefined') return;
+
+    const hash = window.location.hash;
+    const search = window.location.search;
+
+    if (hash.startsWith('#event=')) {
+      const evtId = hash.slice(7).trim();
+      if (evtId) {
+        setSelectedEventId(evtId);
+        setActiveTab('event-detail');
+        return;
+      }
+    }
+
+    if (hash === '#events' || hash === '#volunteer') {
+      setActiveTab('events');
+      return;
+    }
+
+    if (search.includes('event=')) {
+      const params = new URLSearchParams(search);
+      const evtId = params.get('event');
+      if (evtId) {
+        setSelectedEventId(evtId);
+        setActiveTab('event-detail');
+        return;
+      }
+    }
+  };
+
+  useEffect(() => {
+    fetchIssues();
+    parseUrlRoute();
+
+    const handleHashChange = () => {
+      parseUrlRoute();
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
   const handleNavigate = (tab: ActiveTab) => {
     setActiveTab(tab);
+    if (tab === 'events') {
+      window.location.hash = '#events';
+    } else if (tab === 'feed') {
+      if (window.location.hash.startsWith('#event=')) {
+        window.location.hash = '';
+      }
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -81,138 +114,117 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleSelectDriveToJoin = (drive: VolunteeringDrive) => {
-    setSelectedDriveForModal(drive);
-    setIsVolunteerModalOpen(true);
+  const handleSelectEvent = (eventId: string) => {
+    setSelectedEventId(eventId);
+    setActiveTab('event-detail');
+    window.location.hash = `#event=${eventId}`;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleReportSubmit = (newIssueData: Partial<CivicIssue>) => {
-    const fullIssue: CivicIssue = {
-      id: newIssueData.id || `KTV-2024-${Math.floor(1000 + Math.random() * 9000)}`,
-      title: newIssueData.title || 'Reported Issue',
-      location: newIssueData.location || 'Ward 150',
-      city: newIssueData.city || 'Bengaluru',
-      ward: newIssueData.ward || 'Ward 150',
-      category: newIssueData.category || 'Environmental Concerns',
-      severity: newIssueData.severity || 'High Priority',
-      status: 'Open Issues',
-      description: newIssueData.description || '',
-      image: newIssueData.image || issues[0].image,
-      geoCoordinates: newIssueData.geoCoordinates || '12.9372, 77.6823',
-      verifiedSource: newIssueData.verifiedSource || 'Citizen Geotag Report',
-      assignedAuthority: newIssueData.assignedAuthority || 'BBMP Mahadevapura',
-      citizensMobilized: 1,
-      petitionSignatures: 1,
-      petitionTarget: 500,
-      updatedAt: 'Just now',
-      firstRecorded: 'Today',
-      escalationLevel: 1,
-      isWatchlisted: true,
-    };
-    setIssues((prev) => [fullIssue, ...prev]);
+  const handleOpenCreateEventModal = (
+    issue?: CivicIssue,
+    recommendation?: EventRecommendation
+  ) => {
+    setEventPrefilledIssue(issue || null);
+    setEventPrefilledRecommendation(recommendation || null);
+    setIsCreateEventModalOpen(true);
   };
 
-  const handlePetitionSuccess = (newCount: number) => {
-    setIssues((prev) =>
-      prev.map((iss) =>
-        iss.id === selectedIssueId ? { ...iss, petitionSignatures: newCount } : iss
-      )
-    );
-  };
-
-  const handleVolunteerRegistered = (driveId: string) => {
-    setVolunteerDrives((prev) =>
-      prev.map((d) =>
-        d.id === driveId
-          ? {
-              ...d,
-              volunteersRegistered: d.volunteersRegistered + 1,
-              isJoined: true,
-              statusBadge: 'Attendance Confirmed',
-            }
-          : d
-      )
-    );
+  const handleOpenCollabModal = (issue: CivicIssue, stakeholder?: Stakeholder) => {
+    setIssueForCollab(issue);
+    setStakeholderForCollab(stakeholder || null);
+    setIsCollabModalOpen(true);
   };
 
   const currentIssue =
     issues.find((i) => i.id === selectedIssueId) || issues[0];
 
   return (
-    <div className="min-h-screen bg-[#f9f9f9] text-[#047857] flex flex-col font-sans">
+    <div className="min-h-screen bg-[#f9f9f9] text-[#047857] flex flex-col font-sans selection:bg-orange-100 selection:text-orange-900">
       {/* Top Navigation */}
       <Header
         activeTab={activeTab}
         onNavigate={handleNavigate}
         onOpenReportModal={() => setIsReportModalOpen(true)}
-        currentUser={currentUser}
+        scrapingInProgress={scrapingInProgress}
       />
 
       {/* Main View Container */}
-      <div className="flex-1">
-        {activeTab === 'home' && (
-          <HomeView
+      <main className="flex-1">
+        {activeTab === 'feed' && (
+          <DiscoveryFeedView
             issues={issues}
+            loading={loadingIssues}
             onSelectIssue={handleSelectIssue}
-            onNavigate={handleNavigate}
+            onOpenRagWithIssue={(id) => {
+              setSelectedIssueId(id);
+              setActiveTab('rag');
+            }}
+            onOpenCollaborationModal={(iss) => handleOpenCollabModal(iss)}
+            onOpenIngestionTab={() => handleNavigate('ingestion')}
           />
         )}
 
-        {activeTab === 'explore' && (
-          <div className="pt-4">
-            <HomeView
-              issues={issues}
-              onSelectIssue={handleSelectIssue}
-              onNavigate={handleNavigate}
-            />
-          </div>
-        )}
-
-        {activeTab === 'detail' && (
+        {activeTab === 'detail' && currentIssue && (
           <IssueDetailView
             issue={currentIssue}
-            onNavigate={handleNavigate}
-            onOpenSignPetition={() => setIsSignPetitionModalOpen(true)}
-            onOpenRegisterVolunteer={() => {
-              setSelectedDriveForModal(volunteerDrives[4] || volunteerDrives[0]);
-              setIsVolunteerModalOpen(true);
-            }}
-            onOpenFileGrievance={() => setIsFileGrievanceModalOpen(true)}
-            onOpenFactsheet={() => setIsFactsheetModalOpen(true)}
+            onBack={() => handleNavigate('feed')}
+            onOpenCollaborationModal={(iss, stk) => handleOpenCollabModal(iss, stk)}
+            onSelectEvent={handleSelectEvent}
+            onOpenCreateEventModal={(iss, rec) => handleOpenCreateEventModal(iss, rec)}
           />
         )}
 
-        {activeTab === 'volunteer' && (
+        {(activeTab === 'events' || activeTab === 'volunteer') && (
           <VolunteerView
-            drives={volunteerDrives}
-            onSelectDriveToJoin={handleSelectDriveToJoin}
-            onOpenProposalModal={() => setIsReportModalOpen(true)}
+            onSelectEvent={handleSelectEvent}
+            onOpenCreateEventModal={() => handleOpenCreateEventModal()}
+            onSelectIssue={handleSelectIssue}
+          />
+        )}
+
+        {activeTab === 'event-detail' && selectedEventId && (
+          <EventDetailView
+            eventId={selectedEventId}
+            onBack={() => handleNavigate('events')}
+            onSelectIssue={handleSelectIssue}
+            onNavigateToMyRegistrations={() => {
+              handleNavigate('events');
+            }}
+          />
+        )}
+
+        {activeTab === 'rag' && <RagExplorerView />}
+
+        {activeTab === 'ingestion' && (
+          <IngestionAdminView
+            onIngestionCompleted={() => {
+              fetchIssues();
+            }}
+          />
+        )}
+
+        {activeTab === 'stakeholders' && (
+          <StakeholdersView
+            onOpenCollabForStakeholder={(stk) => {
+              handleOpenCollabModal(currentIssue || issues[0], stk);
+            }}
+          />
+        )}
+
+        {activeTab === 'collabs' && (
+          <CollaborationView
+            onSelectIssue={(id) => handleSelectIssue(id)}
           />
         )}
 
         {activeTab === 'dashboard' && (
-          <DashboardView
-            onNavigate={handleNavigate}
-            onOpenReportModal={() => setIsReportModalOpen(true)}
-            onOpenWardAlerts={() => setIsWardAlertsModalOpen(true)}
-            onOpenFileGrievance={() => setIsFileGrievanceModalOpen(true)}
-            onSelectIssue={handleSelectIssue}
+          <DashboardMetricsView
+            onNavigateToIngestion={() => handleNavigate('ingestion')}
+            onNavigateToFeed={() => handleNavigate('feed')}
           />
         )}
-
-        {activeTab === 'insights' && <AIInsightsView />}
-
-        {activeTab === 'organizations' && <OrganizationsView />}
-
-        {activeTab === 'login' && (
-          <LoginView
-            onLoginSuccess={handleLoginSuccess}
-            onNavigate={handleNavigate}
-            currentUser={currentUser}
-            onLogout={handleLogout}
-          />
-        )}
-      </div>
+      </main>
 
       {/* Footer */}
       <Footer onNavigate={handleNavigate} />
@@ -221,38 +233,37 @@ export default function App() {
       <ReportIssueModal
         isOpen={isReportModalOpen}
         onClose={() => setIsReportModalOpen(false)}
-        onSubmit={handleReportSubmit}
+        onReportCreated={() => {
+          fetchIssues();
+        }}
       />
 
-      <SignPetitionModal
-        isOpen={isSignPetitionModalOpen}
-        onClose={() => setIsSignPetitionModalOpen(false)}
-        onSuccess={handlePetitionSuccess}
-        currentSignatures={currentIssue.petitionSignatures || 842}
-        targetSignatures={currentIssue.petitionTarget || 1000}
+      <CollaborationModal
+        isOpen={isCollabModalOpen}
+        onClose={() => setIsCollabModalOpen(false)}
+        issue={issueForCollab}
+        stakeholder={stakeholderForCollab}
+        onSuccess={() => {
+          // Keep synced
+        }}
       />
 
-      <VolunteerRegisterModal
-        isOpen={isVolunteerModalOpen}
-        onClose={() => setIsVolunteerModalOpen(false)}
-        drive={selectedDriveForModal}
-        onRegistered={handleVolunteerRegistered}
-      />
-
-      <WardAlertsModal
-        isOpen={isWardAlertsModalOpen}
-        onClose={() => setIsWardAlertsModalOpen(false)}
-      />
-
-      <FileGrievanceModal
-        isOpen={isFileGrievanceModalOpen}
-        onClose={() => setIsFileGrievanceModalOpen(false)}
-      />
-
-      <FactsheetModal
-        isOpen={isFactsheetModalOpen}
-        onClose={() => setIsFactsheetModalOpen(false)}
-        issue={currentIssue}
+      <CreateEventModal
+        isOpen={isCreateEventModalOpen}
+        onClose={() => {
+          setIsCreateEventModalOpen(false);
+          setEventPrefilledIssue(null);
+          setEventPrefilledRecommendation(null);
+        }}
+        prefilledIssue={eventPrefilledIssue}
+        prefilledRecommendation={eventPrefilledRecommendation}
+        availableIssues={issues}
+        onEventCreated={(evt) => {
+          // Handled inside modal with shareable link and view event button
+        }}
+        onViewEvent={(evtId) => {
+          handleSelectEvent(evtId);
+        }}
       />
     </div>
   );
