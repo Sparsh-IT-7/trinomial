@@ -1,0 +1,6 @@
+{
+  "name": "Kartavya Civic",
+  "description": "See the issue. Be the change. Kartavya turns civic responsibility into real-world action through verified municipal tracking, citizen geo-tagging, and community volunteering.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
